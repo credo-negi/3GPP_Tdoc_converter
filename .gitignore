@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+
+# generated output (downloads, extracted files, markdown, images, results)
+output/
+
+# source data and downloaded documents
+*.xlsx
+*.xls
+*.zip
+*.docx
+*.doc
+*.pptx
+*.ppt
