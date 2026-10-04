@@ -1,25 +1,30 @@
 # 3GPP Tdoc converter
 
-Tdoc list (xlsx) → download zips → unzip → docx/pptx → Markdown → Observation/Proposal list.
+Tdoc list (xlsx) → zip のダウンロード → 解凍 → docx/pptx → Markdown → Observation/Proposal の一覧、を順に行うツール。
 
 ```
-python3 -m tdoc_converter 10.5.2.2            # uses the xlsx in Tdoc_List/
-python3 -m tdoc_converter 10.5.2.2 --limit 3  # try the first 3 Tdocs
-python3 -m tdoc_converter 10.5.2.2 --check-urls  # only HEAD-check the download links
-python3 -m unittest discover -s tests -t .    # offline tests
+python3 -m tdoc_converter 10.5.2.2               # Tdoc_List/ にあるxlsxを使う
+python3 -m tdoc_converter 10.5.2.2 --limit 3     # 先頭3件だけ試す
+python3 -m tdoc_converter 10.5.2.2 --check-urls  # ダウンロードリンクをHEADで確認するだけ
+python3 -m unittest discover -s tests -t .       # オフラインで動くテスト
 ```
 
-Needs: pandas, openpyxl, requests, markitdown, python-docx, python-pptx, Pillow (tests).
+必要なもの: pandas, openpyxl, requests, markitdown, python-docx, python-pptx, Pillow (テストのみ)。
 
-Output: `output/<meeting folder>/<agenda item>/{zip,extracted,markdown,results}`;
-`markdown/<tdoc>.md` links its figures as `images/<tdoc>/imgNNN.png` (saved next to it; identical images stored once);
-`results/observations_proposals.{md,json}` hold the extracted statements.
+## 出力
 
-Notes
-- Download URLs are the hyperlinks on the TDoc cells of the xlsx; see [docs/download_url.md](docs/download_url.md)
-  (how they are read, the fallback rule, server quirks, verification results).
-- EMF/WMF figures cannot be shown by browsers/Markdown viewers. They are converted to PNG if Inkscape or LibreOffice
-  is installed; otherwise the original `.emf`/`.wmf` is kept and linked (the converter call is only covered by a mocked test; Inkscape/LibreOffice are not installed here).
-- Many Tdocs store "Proposal N:" as Word auto-numbering; `numbering.py` writes those labels into the text before conversion.
-- Statements inside tables (quoted earlier agreements) are skipped; a statement repeated in the Conclusion is merged.
-- Legacy `.doc` needs macOS `textutil` or LibreOffice.
+`output/<会議フォルダ>/<agenda item>/{zip,extracted,markdown,results}`
+
+- `markdown/<Tdoc番号>.md`: 図は `images/<Tdoc番号>/imgNNN.png` として隣に保存し、相対パスでリンクする。同じ画像は1ファイルにまとめる。
+- `results/observations_proposals.{md,json}`: 抽出した Observation / Proposal。
+
+## 補足
+
+- ダウンロードURLは、xlsxのTDoc列のセルに設定されたハイパーリンクを使う。
+  読み方、フォールバック規則、サーバー側の挙動、検証結果は [docs/download_url.md](docs/download_url.md) を参照。
+- EMF/WMF形式の図は、ブラウザやMarkdownビューアでは表示できない。InkscapeまたはLibreOfficeがあればPNGに変換する。
+  無い場合は元の `.emf` / `.wmf` を保存してリンクする(変換コマンドの呼び出しはモックしたテストでしか確認していない。
+  開発環境にはどちらも入っていない)。
+- 多くのTdocは「Proposal N:」をWordの自動番号で持っている。`numbering.py` が変換前にそのラベルを本文に書き出す。
+- 表の中の記述(過去の合意の引用など)は読み飛ばす。Conclusionに再掲された同じ記述は1件にまとめる。
+- 旧形式の `.doc` の変換には、macOSの `textutil` またはLibreOfficeが必要。
