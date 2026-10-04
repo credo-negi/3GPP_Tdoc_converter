@@ -12,11 +12,11 @@ import re
 from dataclasses import dataclass
 
 LABEL = re.compile(
-    r"^(?P<kind>Observation|Proposal)s?\s*#?\s*(?P<id>[0-9A-Za-z][\w.\-–]*)?\s*(?:\([^)]*\))?\s*(?:[:：]|(?<=\d)\.(?=\s))\s*(?P<rest>.*)$",
+    r"^(?P<kind>Observation|Proposal)s?\s*#?\s*(?P<id>[0-9A-Za-z][\w.\-–‐‑‒—−]*)?\s*(?:\([^)]*\))?\s*(?:[:：]|(?<=\d)\.(?=\s))\s*(?P<rest>.*)$",
     re.I,
 )
 # A line holding only the label ('**Proposal 3**'); the statement is the text that follows.
-LABEL_ONLY = re.compile(r"^(?P<kind>Observation|Proposal)\s*#?\s*(?P<id>\d[\w.\-–]*)\s*(?:\([^)]*\))?\s*(?P<rest>)$", re.I)
+LABEL_ONLY = re.compile(r"^(?P<kind>Observation|Proposal)\s*#?\s*(?P<id>\d[\w.\-–‐‑‒—−]*)\s*(?:\([^)]*\))?\s*(?P<rest>)$", re.I)
 _LEAD = re.compile(r"^(?:\s*>\s*)*\s*(?:[*+\-•]\s+|\d+[.)]\s+)?")
 _BULLET = re.compile(r"^\s*(?:[*+\-•]|\d+[.)])\s+")
 _HEADING = re.compile(r"^\s*#{1,6}\s+(.*)$")

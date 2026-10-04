@@ -68,6 +68,10 @@ class ExtractTest(unittest.TestCase):
         (s,) = extract_statements(md)
         self.assertEqual(s.section, "DMRS")
 
+    def test_unicode_hyphens_in_label_id(self):
+        md = "***Proposal 2\u20111: Support A.***\n\n**Observation 2\u20112: B.**\n"
+        self.assertEqual(labels(md), [("Proposal", "2\u20111"), ("Observation", "2\u20112")])
+
     def test_math_subscripts_survive_emphasis_stripping(self):
         md = "Observation 15: The window $B_{window}$ and $K_{0}*M_{RB}$ are *key*.\n"
         (s,) = extract_statements(md)
