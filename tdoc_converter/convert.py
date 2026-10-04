@@ -17,6 +17,17 @@ from PIL import Image, ImageChops
 from .numbering import materialize_labels
 
 CONVERTIBLE = {".docx", ".pptx"}   # plus legacy .doc via _legacy_to_docx
+# `$$...$$` and `$...$`, one line each; a bare `$$` is an empty equation
+_MATH = re.compile(r"\$\$[^\n]+?\$\$|(?<!\\)\$[^$\n]+?(?<!\\)\$|\$\$")
+# A trailing space keeps the command apart from a following letter (`\times M`).
+_MATH_SYMBOLS = {
+    "≈": "\\approx ", "≠": "\\neq ", "≤": "\\leq ", "≥": "\\geq ", "×": "\\times ", "⋅": "\\cdot ", "±": "\\pm ",
+    "∈": "\\in ", "∞": "\\infty ", "→": "\\to ", "…": "\\ldots ", "‖": "\\| ",
+    "⌈": "\\lceil ", "⌉": "\\rceil ", "⌊": "\\lfloor ", "⌋": "\\rfloor ",
+    "·": "\\cdot ", "∙": "\\cdot ", "≡": "\\equiv ", "≅": "\\cong ", "⊗": "\\otimes ", "∑": "\\sum ", "•": "\\bullet ",
+    "−": "-", "Ĥ": "\\hat{H}", **{c: "_{%d}" % i for i, c in enumerate("₀₁₂₃₄₅₆₇₈₉")},
+    "\u2001": " ", "\u2009": "\\,", "\u200b": "", "\u00a0": " ",       # thin space, zero-width space, no-break space
+}
 _DATA_IMAGE = re.compile(r"!\[([^\]]*)\]\(data:([^;,)]+);base64,([^)]*)\)")
 _EXT = {"jpeg": "jpg", "x-emf": "emf", "emf": "emf", "x-wmf": "wmf", "wmf": "wmf", "svg+xml": "svg",
         "x-png": "png", "tiff": "tif", "x-tiff": "tif"}
@@ -181,6 +192,30 @@ def _legacy_to_docx(doc_path: Path, out_dir: Path) -> Path:
     return out_dir / (doc_path.stem + ".docx")
 
 
+def _fix_span(m: re.Match) -> str:
+    if m.group(0) == "$$":
+        return ""
+    span = m.group(0).replace("\\_", "_").replace("\\*", "*")
+    for ch, tex in _MATH_SYMBOLS.items():
+        span = span.replace(ch, tex)
+    span = re.sub("([A-Za-z])\u0302", r"\\hat{\1}", span)       # letter + combining circumflex
+    if not span.startswith("$$"):               # inline: no blank next to the delimiters, no digit after the closing `$`
+        if not span[1:-1].strip():
+            return ""                           # empty equation
+        span = "$" + span[1:-1].strip() + "$"
+        if m.end() < len(m.string) and m.string[m.end()].isdigit():
+            span += " "
+    return span
+
+
+def fix_math(text: str) -> str:
+    """Make the math spans of MarkItDown output render in KaTeX/LaTeX:
+    - `_` and `*` are backslash-escaped as Markdown emphasis (`B\\_{w}` is not a subscript)
+    - Unicode symbols (`≈`, `‖` after `\\left`, ...) become commands
+    - `$≈$10` or `$ x$` are not recognised as math by Markdown renderers"""
+    return _MATH.sub(_fix_span, text)
+
+
 def to_markdown(doc_path: Path, image_dir: Path | None = None, link_prefix: str = "") -> str:
     """Convert docx/pptx/doc to Markdown. With image_dir, embedded images are saved there as files
     (linked as `link_prefix + file name`); without it they are dropped."""
@@ -199,6 +234,7 @@ def to_markdown(doc_path: Path, image_dir: Path | None = None, link_prefix: str 
             warnings.simplefilter("ignore")  # pydub's ffmpeg warning
             from markitdown import MarkItDown
             text = MarkItDown().convert(str(src), keep_data_uris=True).text_content
+    text = fix_math(text)
     if image_dir is None:
         return _DATA_IMAGE.sub("", text)
     return externalize_images(text, image_dir, link_prefix)

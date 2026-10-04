@@ -59,6 +59,23 @@ class ConvertTest(unittest.TestCase):
         (s,) = extract_statements(to_markdown(p))
         self.assertEqual((s.label, s.text), ("Proposal 1", "Support X"))
 
+    def test_fix_math_only_touches_math_spans(self):
+        text = r"snake\_case $B\_{window}\*M\_{RB}$ and $$N\_{rx\\_ant}$$ keep \_ here"
+        self.assertEqual(convert.fix_math(text),
+                         r"snake\_case $B_{window}*M_{RB}$ and $$N_{rx\_ant}$$ keep \_ here")
+
+    def test_fix_math_unicode_and_delimiters(self):
+        self.assertEqual(convert.fix_math("EVM$≈$10, SINR$ ≈ $24 dB #1"),
+                         r"EVM$\approx$ 10, SINR$\approx$ 24 dB #1")
+        self.assertEqual(convert.fix_math("$\\left‖h\\right‖×M$"),
+                         r"$\left\| h\right\| \times M$")
+
+    def test_fix_math_more_symbols_and_empty_equation(self):
+        self.assertEqual(convert.fix_math("a$N₀ ∙ν−1$ end.$$\n\nb $$ x $$"),
+                         "a$N_{0} \\cdot ν-1$ end.\n\nb $$ x $$")
+        self.assertEqual(convert.fix_math("end.$ $\n\nb $$ x $$"), "end.\n\nb $$ x $$")
+        self.assertEqual(convert.fix_math("$n̂=Ĥ·x$"), r"$\hat{n}=\hat{H}\cdot x$")
+
     def png_bytes(self, color):
         buf = io.BytesIO()
         Image.new("RGB", (8, 8), color).save(buf, "PNG")
