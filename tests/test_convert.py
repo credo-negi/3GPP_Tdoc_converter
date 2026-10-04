@@ -1,5 +1,6 @@
 import base64
 import io
+import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,7 +12,7 @@ from docx import Document
 from docx.oxml.ns import qn
 from pptx import Presentation
 
-from tdoc_converter import convert
+from tdoc_converter import convert, fix_images
 from tdoc_converter.convert import to_markdown
 from tdoc_converter.extract import extract_statements
 
@@ -93,21 +94,67 @@ class ConvertTest(unittest.TestCase):
     def test_emf_kept_when_no_converter(self):
         b64 = base64.b64encode(b"EMF-DATA").decode()
         text = f"![](data:image/x-emf;base64,{b64})"
-        with mock.patch("shutil.which", return_value=None):
+        with mock.patch("shutil.which", return_value=None), mock.patch.object(convert, "_soffice", return_value=None):
             out = convert.externalize_images(text, self.tmp / "im", "images/x/")
         self.assertEqual(out, "![image](images/x/img001.emf)")
         self.assertEqual((self.tmp / "im" / "img001.emf").read_bytes(), b"EMF-DATA")
 
-    def test_emf_converted_to_png_when_converter_exists(self):
-        b64 = base64.b64encode(b"EMF-DATA").decode()
+    def fake_soffice(self, drawing):
+        """Stand-in for `soffice --convert-to png --outdir DIR file`: writes a page with `drawing` on it."""
+        def run(cmd, **kw):
+            page = Image.new("RGB", (200, 300), "white")
+            if drawing:
+                page.paste((255, 0, 0), (50, 100, 90, 130))
+            page.save(Path(cmd[cmd.index("--outdir") + 1]) / (Path(cmd[-1]).stem + ".png"))
+        return run
 
-        def fake_run(cmd, **kw):
-            Path(cmd[-1].split("=", 1)[-1]).write_bytes(b"PNG")   # inkscape --export-filename=<png>
+    def test_emf_rendered_with_libreoffice_and_cropped(self):
+        emf = self.tmp / "a.emf"
+        emf.write_bytes(b"EMF-DATA")
+        with mock.patch.object(convert, "_soffice", return_value="/bin/soffice"), \
+                mock.patch("subprocess.run", self.fake_soffice(True)):
+            png = convert._vector_to_png(emf)
+        self.assertEqual(png, self.tmp / "a.png")
+        with Image.open(png) as im:
+            self.assertEqual(im.size, (40 + 24, 30 + 24))      # figure + 12px margin on each side
 
-        with mock.patch("shutil.which", side_effect=lambda n: "/bin/inkscape" if n == "inkscape" else None), \
-                mock.patch("subprocess.run", fake_run):
-            out = convert.externalize_images(f"![fig](data:image/x-emf;base64,{b64})", self.tmp / "im", "p/")
-        self.assertEqual(out, "![fig](p/img001.png)")
+    def test_blank_render_without_bitmap_keeps_emf(self):
+        emf = self.tmp / "a.emf"
+        emf.write_bytes(b"EMF-DATA")
+        with mock.patch.object(convert, "_soffice", return_value="/bin/soffice"), \
+                mock.patch("subprocess.run", self.fake_soffice(False)):
+            self.assertIsNone(convert._vector_to_png(emf))
+        self.assertFalse((self.tmp / "a.png").exists())
+
+    def test_blank_render_falls_back_to_emfplus_bitmap(self):
+        pixels = bytes([0, 0, 255, 255]) * 6                   # BGRA red, 3x2
+        image_obj = struct.pack("<IIiiiII", 0xDBC01002, 1, 3, 2, 12, 0x0026200A, 0) + pixels
+        record = struct.pack("<HHII", 0x4008, 0x0500, 12 + len(image_obj), len(image_obj)) + image_obj
+        comment = struct.pack("<II", 70, 0) + struct.pack("<I", 4 + len(record)) + b"EMF+" + record
+        comment = struct.pack("<II", 70, 12 + 4 + len(record)) + comment[8:]
+        emf = self.tmp / "a.emf"
+        emf.write_bytes(struct.pack("<II", 1, 8) + comment)
+        with mock.patch.object(convert, "_soffice", return_value="/bin/soffice"), \
+                mock.patch("subprocess.run", self.fake_soffice(False)):
+            png = convert._vector_to_png(emf)
+        with Image.open(png) as im:
+            self.assertEqual((im.size, im.convert("RGB").getpixel((0, 0))), ((3, 2), (255, 0, 0)))
+
+    def test_soffice_found_in_mac_app_bundle(self):
+        with mock.patch("shutil.which", return_value=None), \
+                mock.patch.object(Path, "exists", return_value=True):
+            self.assertEqual(convert._soffice(), convert._MAC_SOFFICE)
+
+    def test_fix_markdown_dir_converts_and_relinks(self):
+        img = self.tmp / "images" / "R1-1"
+        img.mkdir(parents=True)
+        (img / "img001.emf").write_bytes(b"EMF-DATA")
+        (self.tmp / "R1-1.md").write_text("![image](images/R1-1/img001.emf)\n")
+        with mock.patch.object(convert, "_soffice", return_value="/bin/soffice"), \
+                mock.patch("subprocess.run", self.fake_soffice(True)):
+            self.assertEqual(fix_images.fix_markdown_dir(self.tmp), (1, []))
+        self.assertEqual((self.tmp / "R1-1.md").read_text(), "![image](images/R1-1/img001.png)\n")
+        self.assertEqual(sorted(p.name for p in img.iterdir()), ["img001.png"])
 
     def test_unsupported_extension(self):
         with self.assertRaises(ValueError):
