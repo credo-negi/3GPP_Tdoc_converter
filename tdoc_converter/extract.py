@@ -24,6 +24,11 @@ _NUM_HEADING = re.compile(r"^\s*\d+\.\s+\*\*(.+?)\*\*\s*$")   # '1. **DMRS desig
 _IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _CAPTION = re.compile(r"^\W*(?:Figure|Table)\s+[\d.\-–]+", re.I)
 _MATH = re.compile(r"\$\$.+?\$\$|(?<!\\)\$[^$\n]+?(?<!\\)\$")
+# Headings that name a part of the document rather than a topic; they say nothing about the theme.
+_GENERIC_HEADING = re.compile(
+    r"^(?:conclusions?|summary|introduction|discussions?|overview|background|references?|observations?|proposals?)"
+    r"\b.*$", re.I)
+_SECTION_NO = re.compile(r"^\d+(?:\.\d+)*\.?\s+")
 _EMPH = re.compile(r"\*{2,3}|(?<!\w)_{1,2}(?=\S)|(?<=\S)_{1,2}(?!\w)")
 
 
@@ -32,7 +37,7 @@ class Statement:
     kind: str                # "Observation" | "Proposal"
     id: str                  # e.g. "2-1-1" ("" if unnumbered)
     text: str
-    section: str = ""
+    section: str = ""        # theme: nearest topic heading above ("" under Conclusion, Introduction, ...)
     occurrences: int = 1
 
     @property
@@ -45,6 +50,11 @@ def _strip_emphasis(text: str) -> str:
     parts, maths = _MATH.split(text), _MATH.findall(text)
     return "".join(_EMPH.sub("", p).replace("*", "") + (maths[i] if i < len(maths) else "")
                    for i, p in enumerate(parts))
+
+
+def _theme(heading: str) -> str:
+    title = _SECTION_NO.sub("", heading).strip()
+    return "" if _GENERIC_HEADING.match(title) else title
 
 
 def _clean(line: str) -> str:
@@ -73,7 +83,7 @@ def extract_statements(markdown: str) -> list[Statement]:
         line = lines[i]
         h = _HEADING.match(line) or _NUM_HEADING.match(line)
         if h:
-            section = _clean(h.group(1)).strip()
+            section = _theme(_clean(h.group(1)).strip())
             i += 1
             continue
         m = None if line.lstrip().startswith("|") else _match_label(line)
@@ -134,4 +144,5 @@ def _merge_duplicates(items: list[Statement]) -> list[Statement]:
         keep.occurrences += 1
         if len(s.text) > len(keep.text):   # keep the fullest wording, but the first section
             keep.text = s.text
+        keep.section = keep.section or s.section
     return list(merged.values())

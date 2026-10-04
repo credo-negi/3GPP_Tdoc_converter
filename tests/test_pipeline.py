@@ -1,4 +1,4 @@
-import io
+import csv
 import json
 import tempfile
 import unittest
@@ -55,7 +55,14 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("no docx", results[1].error)
         res_dir = tmp / "out" / "TSGR1_126b" / "10.5.2.2" / "results"
         data = json.loads((res_dir / "observations_proposals.json").read_text())
-        self.assertEqual(data[0]["statements"][0]["text"], "Support single TB over 400 MHz.")
+        self.assertEqual(data[0]["company"], "Acme")
+        self.assertEqual(data[0]["tdocs"][0]["statements"][0]["text"], "Support single TB over 400 MHz.")
+        with (res_dir / "observations_proposals.csv").open(encoding="utf-8-sig", newline="") as f:
+            rows = list(csv.reader(f))
+        self.assertEqual(rows[0], ["Tdoc", "Agenda item", "Company", "Type", "Theme", "Text"])
+        self.assertEqual(len(rows), 4)          # header + the 3 statements of R1-1
+        self.assertEqual(rows[1][:4], ["R1-1", "10.5.2.2", "Acme", "Proposal"])
+        self.assertEqual(rows[1][5], "Support single TB over 400 MHz.")
         report = (res_dir / "observations_proposals.md").read_text()
         self.assertIn("R1-3", report)               # listed under "Not downloaded"
         self.assertIn("extraction failed", report)

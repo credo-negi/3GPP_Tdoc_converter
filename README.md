@@ -16,7 +16,10 @@ python3 -m unittest discover -s tests -t .       # オフラインで動くテ�
 `output/<会議フォルダ>/<agenda item>/{zip,extracted,markdown,results}`
 
 - `markdown/<Tdoc番号>.md`: 図は `images/<Tdoc番号>/imgNNN.png` として隣に保存し、相対パスでリンクする。同じ画像は1ファイルにまとめる。
-- `results/observations_proposals.{md,json}`: 抽出した Observation / Proposal。
+- `results/observations_proposals.{md,json,csv}`: 抽出した Observation / Proposal。
+  企業(Tdocの Source 欄)ごとに、Tdocリストの登場順で並べる。Observation と Proposal は分けず、文書内の登場順のまま。
+  csv の列は `Tdoc, Agenda item, Company, Type(Observation/Proposal), Theme, Text`(Excelで開けるようBOM付きUTF-8)。
+  Theme は直上の見出し(章番号は除く)で、Conclusion / Introduction など話題を表さない見出しの下では空になる。
 
 ## 補足
 

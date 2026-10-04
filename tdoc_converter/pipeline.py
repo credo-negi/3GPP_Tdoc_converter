@@ -1,7 +1,6 @@
 """End-to-end run for one agenda item: list -> download -> unzip -> markdown -> extract."""
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -10,6 +9,7 @@ import requests
 
 from . import download, extract
 from .convert import convert_to_file
+from .report import write_reports
 from .tdoc_list import Tdoc, load_tdoc_list, meeting_folder_candidates, select_agenda_item
 
 
@@ -74,38 +74,3 @@ def run(xlsx: Path, agenda_item: str, out_root: Path, folder: str | None = None,
         time.sleep(delay)
     write_reports(results, skipped, work / "results", agenda_item)
     return results
-
-
-def write_reports(results: list[Result], skipped: list[Tdoc], out_dir: Path, agenda_item: str) -> None:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    data = [{"tdoc": r.tdoc.number, "title": r.tdoc.title, "source": r.tdoc.source, "error": r.error,
-             "statements": [{"kind": s.kind, "id": s.id, "section": s.section, "text": s.text,
-                             "occurrences": s.occurrences} for s in r.statements]} for r in results]
-    (out_dir / "observations_proposals.json").write_text(
-        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    md = [f"# Agenda item {agenda_item}: observations and proposals", ""]
-    for kind in ("Observation", "Proposal"):
-        total = sum(s.kind == kind for r in results for s in r.statements)
-        md.append(f"- {kind}s: {total}")
-    md.append("")
-    for r in results:
-        md += [f"## {r.tdoc.number} — {r.tdoc.source}", f"*{r.tdoc.title}*", ""]
-        if r.error:
-            md += [f"> extraction failed: {r.error}", ""]
-            continue
-        if not r.statements:
-            md += ["> no Observation/Proposal found", ""]
-        for kind in ("Observation", "Proposal"):
-            items = [s for s in r.statements if s.kind == kind]
-            if items:
-                md += [f"### {kind}s", ""]
-                for s in items:
-                    first, *rest = s.text.split("\n")
-                    md.append(f"- **{s.label}**" + (f" _({s.section})_" if s.section else "") + f": {first}")
-                    md += ["  " + line for line in rest]
-                md.append("")
-    if skipped:
-        md += ["## Not downloaded (no file on server yet)", ""]
-        md += [f"- {t.number} ({t.source}) — status: {t.status}" for t in skipped]
-    (out_dir / "observations_proposals.md").write_text("\n".join(md) + "\n", encoding="utf-8")

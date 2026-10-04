@@ -58,6 +58,16 @@ class ExtractTest(unittest.TestCase):
         got = extract_statements(md)
         self.assertEqual([s.text for s in got], ["A.", "B."])
 
+    def test_theme_is_nearest_topic_heading_without_numbers_or_generic_parts(self):
+        md = ("## 2.2.3 PT-RS Design\n\nProposal 1: A.\n\n# Conclusion\n\nObservation 1: B.\n"
+              "\n## Time domain\n\nProposal 2: C.\n")
+        self.assertEqual([s.section for s in extract_statements(md)], ["PT-RS Design", "", "Time domain"])
+
+    def test_merged_duplicate_takes_first_topic_section(self):
+        md = "# Conclusion\n\nProposal 1: A.\n\n## DMRS\n\nProposal 1: A, more.\n"
+        (s,) = extract_statements(md)
+        self.assertEqual(s.section, "DMRS")
+
     def test_math_subscripts_survive_emphasis_stripping(self):
         md = "Observation 15: The window $B_{window}$ and $K_{0}*M_{RB}$ are *key*.\n"
         (s,) = extract_statements(md)
