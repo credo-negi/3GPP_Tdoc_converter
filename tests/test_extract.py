@@ -58,6 +58,11 @@ class ExtractTest(unittest.TestCase):
         got = extract_statements(md)
         self.assertEqual([s.text for s in got], ["A.", "B."])
 
+    def test_math_subscripts_survive_emphasis_stripping(self):
+        md = "Observation 15: The window $B_{window}$ and $K_{0}*M_{RB}$ are *key*.\n"
+        (s,) = extract_statements(md)
+        self.assertEqual(s.text, "The window $B_{window}$ and $K_{0}*M_{RB}$ are key.")
+
 
 if __name__ == "__main__":
     unittest.main()

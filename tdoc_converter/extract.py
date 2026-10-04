@@ -23,6 +23,7 @@ _HEADING = re.compile(r"^\s*#{1,6}\s+(.*)$")
 _NUM_HEADING = re.compile(r"^\s*\d+\.\s+\*\*(.+?)\*\*\s*$")   # '1. **DMRS design**' (list-styled heading)
 _IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _CAPTION = re.compile(r"^\W*(?:Figure|Table)\s+[\d.\-–]+", re.I)
+_MATH = re.compile(r"\$\$.+?\$\$|(?<!\\)\$[^$\n]+?(?<!\\)\$")
 _EMPH = re.compile(r"\*{2,3}|(?<!\w)_{1,2}(?=\S)|(?<=\S)_{1,2}(?!\w)")
 
 
@@ -39,14 +40,20 @@ class Statement:
         return f"{self.kind} {self.id}".strip()
 
 
+def _strip_emphasis(text: str) -> str:
+    """Drop Markdown emphasis marks, but keep `_` and `*` inside math spans (subscripts, operators)."""
+    parts, maths = _MATH.split(text), _MATH.findall(text)
+    return "".join(_EMPH.sub("", p).replace("*", "") + (maths[i] if i < len(maths) else "")
+                   for i, p in enumerate(parts))
+
+
 def _clean(line: str) -> str:
     line = re.sub(r"^(\s*)\*(\s)", r"\1-\2", line)       # '*' bullet -> '-'
-    line = _EMPH.sub("", line).replace("*", "")
-    return line.rstrip()
+    return _strip_emphasis(line).rstrip()
 
 
 def _match_label(line: str):
-    plain = _EMPH.sub("", _LEAD.sub("", line)).replace("*", "").strip()
+    plain = _strip_emphasis(_LEAD.sub("", line)).strip()
     m = LABEL.match(plain)
     if m:
         return m
