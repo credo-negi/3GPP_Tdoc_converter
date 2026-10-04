@@ -68,6 +68,42 @@ def select_agenda_item(df: pd.DataFrame, agenda_item: str) -> list[Tdoc]:
     ]
 
 
+_SUFFIX = {"bis": "b", "ter": "c"}
+
+
+def _meeting_key(text: str) -> tuple[str, str] | None:
+    """(number, suffix) of a meeting spelled like '126bis', '126-bis', '126b', '#126' or 'RAN1#126-bis'."""
+    m = re.search(r"(\d+)(?:[-_ ]?(bis|ter|b|c|e))?\s*$", Path(text).stem if text.endswith(".xlsx") else text, re.I)
+    if not m:
+        return None
+    suffix = (m.group(2) or "").lower()
+    return m.group(1), _SUFFIX.get(suffix, suffix)
+
+
+def available_meetings(directory: str | Path) -> dict[tuple[str, str], Path]:
+    """Meeting key -> xlsx for every 'TDoc_List_Meeting_RAN<wg>#<meeting>.xlsx' in `directory`."""
+    found = {}
+    for p in sorted(Path(directory).glob("*.xlsx")):
+        key = _meeting_key(re.sub(r"^.*#", "", p.name)) if "#" in p.name else None
+        if key:
+            found[key] = p
+    return found
+
+
+def find_tdoc_list(directory: str | Path, meeting: str | None = None) -> Path:
+    """The Tdoc list of `meeting` in `directory`; without `meeting`, the only list there."""
+    found = available_meetings(directory)
+    names = ", ".join(p.name for p in found.values()) or "none"
+    if meeting is None:
+        if len(found) != 1:
+            raise ValueError(f"{len(found)} Tdoc lists in {directory} ({names}); choose one with --meeting")
+        return next(iter(found.values()))
+    key = _meeting_key(meeting)
+    if key is None or key not in found:
+        raise ValueError(f"no Tdoc list for meeting {meeting!r} in {directory} (available: {names})")
+    return found[key]
+
+
 def meeting_folder_candidates(xlsx_path: str | Path) -> list[str]:
     """Guess 3GPP FTP meeting folder names from a file name like 'TDoc_List_Meeting_RAN1#126-bis.xlsx'.
 

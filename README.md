@@ -3,7 +3,8 @@
 Tdoc list (xlsx) → zip のダウンロード → 解凍 → docx/pptx → Markdown → Observation/Proposal の一覧、を順に行うツール。
 
 ```
-python3 -m tdoc_converter 10.5.2.2               # Tdoc_List/ にあるxlsxを使う
+python3 -m tdoc_converter 10.5.2.2               # Tdoc_List/ にあるxlsxを使う(1つだけのとき)
+python3 -m tdoc_converter 10.5.2.2 --meeting 126bis  # 会合を指定(126, 126bis, 126-bis, 126b など)
 python3 -m tdoc_converter 10.5.2.2 --limit 3     # 先頭3件だけ試す
 python3 -m tdoc_converter 10.5.2.2 --check-urls  # ダウンロードリンクをHEADで確認するだけ
 python3 -m unittest discover -s tests -t .       # オフラインで動くテスト

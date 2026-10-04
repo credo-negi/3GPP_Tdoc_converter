@@ -4,7 +4,7 @@ from pathlib import Path
 
 import openpyxl
 
-from tdoc_converter.tdoc_list import load_tdoc_list, meeting_folder_candidates, select_agenda_item
+from tdoc_converter.tdoc_list import available_meetings, find_tdoc_list, load_tdoc_list, meeting_folder_candidates, select_agenda_item
 
 HEADER = ["TDoc", "Title", "Source", "Agenda item", "TDoc Status", "Uploaded"]
 
@@ -47,6 +47,21 @@ class TdocListTest(unittest.TestCase):
         a, b = select_agenda_item(load_tdoc_list(p), "10.5.2.2")
         self.assertEqual(a.url, "https://www.3gpp.org/ftp/tsg_ran/WG1_RL1/TSGR1_126b/Docs/R1-1.zip")
         self.assertEqual(b.url, "")
+
+    def test_find_tdoc_list_by_meeting(self):
+        d = Path(tempfile.mkdtemp())
+        for name in ("TDoc_List_Meeting_RAN1#126-bis.xlsx", "TDoc_List_Meeting_RAN1#126.xlsx", "notes.xlsx"):
+            (d / name).touch()
+        self.assertEqual(len(available_meetings(d)), 2)
+        for spec in ("126bis", "126-bis", "126b", "RAN1#126-bis", "#126bis"):
+            self.assertEqual(find_tdoc_list(d, spec).name, "TDoc_List_Meeting_RAN1#126-bis.xlsx", spec)
+        self.assertEqual(find_tdoc_list(d, "126").name, "TDoc_List_Meeting_RAN1#126.xlsx")
+        with self.assertRaisesRegex(ValueError, "choose one with --meeting"):
+            find_tdoc_list(d)
+        with self.assertRaisesRegex(ValueError, "available"):
+            find_tdoc_list(d, "127")
+        (d / "TDoc_List_Meeting_RAN1#126.xlsx").unlink()
+        self.assertEqual(find_tdoc_list(d).name, "TDoc_List_Meeting_RAN1#126-bis.xlsx")
 
     def test_meeting_folder_candidates(self):
         self.assertEqual(meeting_folder_candidates("TDoc_List_Meeting_RAN1#126-bis.xlsx")[0], "TSGR1_126b")
